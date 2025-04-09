@@ -13,7 +13,11 @@ document.addEventListener('DOMContentLoaded', function() {
     let allData = [];
     let showAvailable = true;
     let showUnavailable = true;
+    let showBothProviders = true;
+    let showSingleProvider = true;
     let selectedStreet = null;
+    let selectedProvider = null;
+    let providerCounts = {};
     
     // Initialize the application
     initializeMap();
@@ -50,6 +54,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 <h4>FTTH Availability</h4>
                 <div><i class="available"></i> Available</div>
                 <div><i class="unavailable"></i> Unavailable</div>
+                <div><i class="both-providers"></i> Both Providers</div>
+                <div><i class="single-provider"></i> Single Provider</div>
             `;
             return div;
         };
@@ -86,11 +92,17 @@ document.addEventListener('DOMContentLoaded', function() {
         // Store the data
         allData = data;
         
+        // Process data to identify addresses with multiple providers
+        processProviderData();
+        
         // Update markers
         updateMarkers();
         
         // Update street list
         updateStreetList();
+        
+        // Update provider list
+        updateProviderList();
         
         // Update statistics
         updateStats();
@@ -102,6 +114,55 @@ document.addEventListener('DOMContentLoaded', function() {
                 padding: [50, 50]  // Add some padding around the bounds
             });
         }
+    }
+    
+    /**
+     * Process provider data to identify locations with multiple providers
+     */
+    function processProviderData() {
+        // Create a map to track addresses by their coordinates
+        const addressMap = new Map();
+        
+        allData.forEach(point => {
+            // Skip points without valid coordinates
+            if (!point.latitude || !point.longitude) return;
+            
+            const key = `${point.latitude},${point.longitude}`;
+            
+            // If the address is already in the map, update its providers list
+            if (addressMap.has(key)) {
+                const address = addressMap.get(key);
+                if (!address.providers.includes(point.provider)) {
+                    address.providers.push(point.provider);
+                }
+            } else {
+                // Otherwise, add it to the map
+                addressMap.set(key, {
+                    ...point,
+                    providers: [point.provider]
+                });
+            }
+        });
+        
+        // Convert the map back to an array and update allData
+        allData = Array.from(addressMap.values());
+        
+        // Count unique providers
+        const uniqueProviders = new Set();
+        allData.forEach(point => {
+            if (point.providers) {
+                point.providers.forEach(provider => uniqueProviders.add(provider));
+            }
+        });
+        
+        // Count addresses by provider count
+        providerCounts = {
+            total: allData.length,
+            bothProviders: allData.filter(point => point.providers && point.providers.length > 1).length,
+            singleProvider: allData.filter(point => point.providers && point.providers.length === 1).length,
+            available: allData.filter(point => point.isAvailable === 1).length,
+            unavailable: allData.filter(point => point.isAvailable === 0).length
+        };
     }
     
     /**
@@ -117,24 +178,40 @@ document.addEventListener('DOMContentLoaded', function() {
         allData.forEach(point => {
             // Check if the point should be visible based on filters
             const isAvailable = point.isAvailable === 1;
+            const hasBothProviders = point.providers && point.providers.length > 1;
+            const hasSingleProvider = point.providers && point.providers.length === 1;
             
             const visibleByAvailability = (isAvailable && showAvailable) || 
                                         (!isAvailable && showUnavailable);
             
+            const visibleByProviderCount = (hasBothProviders && showBothProviders) || 
+                                          (hasSingleProvider && showSingleProvider);
+            
+            const visibleBySelectedProvider = !selectedProvider || 
+                                            (point.providers && point.providers.includes(selectedProvider));
+            
             const visibleByStreet = !selectedStreet || 
                                     point.streetName === selectedStreet;
             
-            if (visibleByAvailability && visibleByStreet) {
+            if (visibleByAvailability && visibleByProviderCount && visibleBySelectedProvider && visibleByStreet) {
                 // Create marker only if coordinates are valid
                 const lat = parseFloat(point.latitude);
                 const lng = parseFloat(point.longitude);
                 
                 if (!isNaN(lat) && !isNaN(lng)) {
-                    const markerColor = isAvailable ? '#43a047' : '#e53935';
+                    // Determine marker color based on availability and provider count
+                    let markerColor;
+                    if (hasBothProviders) {
+                        markerColor = isAvailable ? '#8e24aa' : '#6a1b9a'; // Purple for both providers
+                    } else if (hasSingleProvider) {
+                        markerColor = isAvailable ? '#43a047' : '#e53935'; // Green/Red for single provider
+                    } else {
+                        markerColor = isAvailable ? '#43a047' : '#e53935'; // Fallback
+                    }
                     
                     // Create a circle marker
                     const circleMarker = L.circleMarker([lat, lng], {
-                        radius: 8,
+                        radius: hasBothProviders ? 10 : 8, // Larger radius for both providers
                         fillColor: markerColor,
                         color: '#fff',
                         weight: 2,
@@ -147,12 +224,20 @@ document.addEventListener('DOMContentLoaded', function() {
                         ? point.subHouse 
                         : '';
                     
+                    const providersText = point.providers && point.providers.length > 0
+                        ? `<p><strong>Providers:</strong> ${point.providers.join(', ')}</p>`
+                        : '';
+                    
                     const popupContent = `
                         <div class="popup-content">
                             <h3>${point.streetName}, ${point.house}${subHouseText ? ` ${subHouseText}` : ''}</h3>
                             <p class="availability ${isAvailable ? 'available' : 'unavailable'}">
                                 <strong>Availability:</strong> ${isAvailable ? 'Available' : 'Unavailable'}
                             </p>
+                            <p class="provider-count ${hasBothProviders ? 'both-providers' : 'single-provider'}">
+                                <strong>Provider Count:</strong> ${hasBothProviders ? 'Both Providers' : 'Single Provider'}
+                            </p>
+                            ${providersText}
                             <p><strong>Full Address:</strong> ${point.fullAddress || ''}</p>
                             <p><strong>Coordinates:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}</p>
                             ${point.gisFullName ? `<p><strong>GIS Full Name:</strong> ${point.gisFullName}</p>` : ''}
@@ -204,6 +289,38 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     /**
+     * Update the list of providers for filtering
+     */
+    function updateProviderList() {
+        const providerList = document.getElementById('provider-list');
+        if (!providerList) return;
+        
+        providerList.innerHTML = '';
+        
+        // Get unique providers
+        const providers = [...new Set(allData.flatMap(point => point.providers || []))].sort();
+        
+        providers.forEach(provider => {
+            const providerItem = document.createElement('div');
+            providerItem.className = 'provider-item';
+            providerItem.textContent = provider;
+            providerItem.addEventListener('click', () => {
+                selectedProvider = provider;
+                
+                // Update selected class
+                document.querySelectorAll('.provider-item').forEach(item => {
+                    item.classList.remove('selected');
+                });
+                providerItem.classList.add('selected');
+                
+                updateMarkers();
+            });
+            
+            providerList.appendChild(providerItem);
+        });
+    }
+    
+    /**
      * Filter the street list based on search input
      */
     function filterStreetList() {
@@ -237,6 +354,20 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     /**
+     * Clear provider filter
+     */
+    function clearProviderFilter() {
+        selectedProvider = null;
+        
+        // Remove selected class
+        document.querySelectorAll('.provider-item').forEach(item => {
+            item.classList.remove('selected');
+        });
+        
+        updateMarkers();
+    }
+    
+    /**
      * Toggle available points visibility
      */
     function toggleAvailable() {
@@ -255,28 +386,54 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     /**
+     * Toggle both providers visibility
+     */
+    function toggleBothProviders() {
+        showBothProviders = !showBothProviders;
+        document.getElementById('filter-both-providers').classList.toggle('active', showBothProviders);
+        updateMarkers();
+    }
+    
+    /**
+     * Toggle single provider visibility
+     */
+    function toggleSingleProvider() {
+        showSingleProvider = !showSingleProvider;
+        document.getElementById('filter-single-provider').classList.toggle('active', showSingleProvider);
+        updateMarkers();
+    }
+    
+    /**
      * Update statistics display
      */
     function updateStats() {
-        const totalPoints = allData.length;
-        const availablePoints = allData.filter(point => point.isAvailable === 1).length;
-        const unavailablePoints = totalPoints - availablePoints;
-        
-        document.getElementById('total-points').textContent = totalPoints;
-        document.getElementById('available-points').textContent = availablePoints;
-        document.getElementById('unavailable-points').textContent = unavailablePoints;
+        document.getElementById('total-points').textContent = providerCounts.total || 0;
+        document.getElementById('available-points').textContent = providerCounts.available || 0;
+        document.getElementById('unavailable-points').textContent = providerCounts.unavailable || 0;
+        document.getElementById('both-providers-points').textContent = providerCounts.bothProviders || 0;
+        document.getElementById('single-provider-points').textContent = providerCounts.singleProvider || 0;
     }
     
     /**
      * Set up event listeners for UI elements
      */
     function setupEventListeners() {
-        // Filter buttons
+        // Availability filter buttons
         document.getElementById('filter-available').addEventListener('click', toggleAvailable);
         document.getElementById('filter-unavailable').addEventListener('click', toggleUnavailable);
+        
+        // Provider count filter buttons
+        document.getElementById('filter-both-providers').addEventListener('click', toggleBothProviders);
+        document.getElementById('filter-single-provider').addEventListener('click', toggleSingleProvider);
         
         // Street filter
         document.getElementById('street-filter').addEventListener('input', filterStreetList);
         document.getElementById('clear-street').addEventListener('click', clearStreetFilter);
+        
+        // Provider filter
+        const clearProviderButton = document.getElementById('clear-provider');
+        if (clearProviderButton) {
+            clearProviderButton.addEventListener('click', clearProviderFilter);
+        }
     }
 });

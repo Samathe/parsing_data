@@ -32,10 +32,24 @@
                 </div>
                 
                 <div class="filter-section">
+                    <h3>Provider Filters</h3>
+                    <div class="filter-buttons">
+                        <button id="filter-both-providers" class="toggle-button active">Both Providers</button>
+                        <button id="filter-single-provider" class="toggle-button active">Single Provider</button>
+                    </div>
+                </div>
+                
+                <div class="filter-section">
                     <h3>Street Filter</h3>
                     <input type="text" id="street-filter" placeholder="Search streets..." />
                     <div id="street-list" class="scrollable-list"></div>
                     <button id="clear-street" class="clear-button">Clear Selection</button>
+                </div>
+                
+                <div class="filter-section">
+                    <h3>Provider Filter</h3>
+                    <div id="provider-list" class="scrollable-list"></div>
+                    <button id="clear-provider" class="clear-button">Clear Selection</button>
                 </div>
                 
                 <div id="stats">
@@ -52,6 +66,14 @@
                         <div class="stat-item">
                             <span class="stat-label">Unavailable:</span>
                             <span id="unavailable-points" class="stat-value">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Both Providers:</span>
+                            <span id="both-providers-points" class="stat-value">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Single Provider:</span>
+                            <span id="single-provider-points" class="stat-value">0</span>
                         </div>
                         <div class="stat-item">
                             <span class="stat-label">Visible Points:</span>

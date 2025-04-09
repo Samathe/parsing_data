@@ -1,4 +1,4 @@
-/* Modern, clean design with improved readability */
+/* Modern, clean design with improved readability and mobile support */
 :root {
     --primary-color: #2196f3;
     --secondary-color: #4caf50;
@@ -23,6 +23,7 @@ body {
     line-height: 1.6;
     color: var(--text-dark);
     background-color: var(--background-light);
+    overflow-x: hidden;
 }
 
 #container {
@@ -32,20 +33,39 @@ body {
     max-width: 1920px;
     margin: 0 auto;
     box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+    position: relative;
 }
 
 /* Header */
 header {
     background: linear-gradient(135deg, var(--primary-color), #1976d2);
     color: white;
-    padding: 20px;
+    padding: 15px;
     text-align: center;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
 header h1 {
     font-weight: 600;
     letter-spacing: -0.5px;
+    font-size: 1.5rem;
+}
+
+#toggle-sidebar {
+    position: absolute;
+    left: 15px;
+    background: transparent;
+    border: none;
+    color: white;
+    font-size: 1.5rem;
+    cursor: pointer;
+    display: none;
+    z-index: 1001;
 }
 
 /* Map Container */
@@ -53,6 +73,7 @@ header h1 {
     display: flex;
     flex: 1;
     overflow: hidden;
+    position: relative;
 }
 
 /* Sidebar */
@@ -63,6 +84,8 @@ header h1 {
     overflow-y: auto;
     border-right: 1px solid var(--border-light);
     box-shadow: 2px 0 10px rgba(0, 0, 0, 0.05);
+    transition: transform 0.3s ease;
+    z-index: 999;
 }
 
 .filter-section {
@@ -314,16 +337,16 @@ header h1 {
     background-color: var(--orange-color);
 }
 
-/* Responsive Design */
-@media (max-width: 768px) {
-    #map-container {
-        flex-direction: column;
-    }
-    
-    #sidebar {
-        width: 100%;
-        max-height: 50vh;
-    }
+/* Overlay for mobile when sidebar is open */
+.sidebar-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 998;
 }
 
 /* Custom Scrollbar */
@@ -342,4 +365,87 @@ header h1 {
 
 ::-webkit-scrollbar-thumb:hover {
     background: #1976d2;
+}
+
+/* Mobile & Responsive Styles */
+@media (max-width: 768px) {
+    header h1 {
+        font-size: 1.2rem;
+    }
+
+    #toggle-sidebar {
+        display: block;
+    }
+    
+    #map-container {
+        flex-direction: column;
+    }
+    
+    #sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 100%;
+        width: 85%;
+        max-width: 350px;
+        transform: translateX(-100%);
+        z-index: 999;
+        padding-top: 60px;
+    }
+    
+    #sidebar.open {
+        transform: translateX(0);
+    }
+    
+    .sidebar-overlay.active {
+        display: block;
+    }
+    
+    #map {
+        height: calc(100vh - 60px);
+    }
+    
+    .stat-row {
+        grid-template-columns: 1fr;
+    }
+    
+    .filter-buttons {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .toggle-button {
+        padding: 8px 10px;
+        font-size: 0.8rem;
+    }
+    
+    .legend {
+        max-width: 150px;
+        font-size: 0.9rem;
+    }
+    
+    .legend i {
+        width: 14px;
+        height: 14px;
+    }
+}
+
+/* Portrait phones */
+@media (max-width: 480px) {
+    header h1 {
+        font-size: 1rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    #sidebar {
+        width: 90%;
+    }
+    
+    .legend {
+        max-width: 120px;
+        font-size: 0.8rem;
+        padding: 8px;
+    }
 }

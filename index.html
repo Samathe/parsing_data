@@ -12,12 +12,18 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
     
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+    
     <!-- Custom CSS -->
     <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
     <div id="container">
         <header>
+            <button id="toggle-sidebar" aria-label="Toggle Filters">
+                <i class="fas fa-filter"></i>
+            </button>
             <h1>Almaty FTTH Availability Map</h1>
         </header>
         
@@ -84,6 +90,7 @@
             </div>
             
             <div id="map"></div>
+            <div class="sidebar-overlay"></div>
         </div>
     </div>
     

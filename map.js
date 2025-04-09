@@ -18,11 +18,13 @@ document.addEventListener('DOMContentLoaded', function() {
     let selectedStreet = null;
     let selectedProvider = null;
     let providerCounts = {};
+    let isSidebarOpen = false;
     
     // Initialize the application
     initializeMap();
     loadMapData();
     setupEventListeners();
+    setupMobileLayout();
     
     /**
      * Initialize the map with base layers
@@ -282,6 +284,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 streetItem.classList.add('selected');
                 
                 updateMarkers();
+                
+                // Close sidebar on mobile after selection
+                if (window.innerWidth <= 768) {
+                    closeSidebar();
+                }
             });
             
             streetList.appendChild(streetItem);
@@ -314,6 +321,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 providerItem.classList.add('selected');
                 
                 updateMarkers();
+                
+                // Close sidebar on mobile after selection
+                if (window.innerWidth <= 768) {
+                    closeSidebar();
+                }
             });
             
             providerList.appendChild(providerItem);
@@ -412,6 +424,73 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('unavailable-points').textContent = providerCounts.unavailable || 0;
         document.getElementById('both-providers-points').textContent = providerCounts.bothProviders || 0;
         document.getElementById('single-provider-points').textContent = providerCounts.singleProvider || 0;
+    }
+    
+    /**
+     * Set up mobile layout
+     */
+    function setupMobileLayout() {
+        const toggleSidebarButton = document.getElementById('toggle-sidebar');
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.querySelector('.sidebar-overlay');
+        
+        if (toggleSidebarButton && sidebar && overlay) {
+            toggleSidebarButton.addEventListener('click', toggleSidebar);
+            overlay.addEventListener('click', closeSidebar);
+            
+            // Close sidebar when map is clicked on mobile
+            map.on('click', function() {
+                if (window.innerWidth <= 768 && isSidebarOpen) {
+                    closeSidebar();
+                }
+            });
+            
+            // Update map size when sidebar is toggled
+            sidebar.addEventListener('transitionend', function() {
+                map.invalidateSize();
+            });
+        }
+        
+        // Handle window resize
+        window.addEventListener('resize', function() {
+            // If returning to desktop view, reset sidebar
+            if (window.innerWidth > 768) {
+                sidebar.classList.remove('open');
+                overlay.classList.remove('active');
+                isSidebarOpen = false;
+            }
+            
+            // Always update map size on resize
+            map.invalidateSize();
+        });
+    }
+    
+    /**
+     * Toggle sidebar visibility on mobile
+     */
+    function toggleSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.querySelector('.sidebar-overlay');
+        
+        if (sidebar.classList.contains('open')) {
+            closeSidebar();
+        } else {
+            sidebar.classList.add('open');
+            overlay.classList.add('active');
+            isSidebarOpen = true;
+        }
+    }
+    
+    /**
+     * Close sidebar on mobile
+     */
+    function closeSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.querySelector('.sidebar-overlay');
+        
+        sidebar.classList.remove('open');
+        overlay.classList.remove('active');
+        isSidebarOpen = false;
     }
     
     /**

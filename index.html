@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FTTH Availability Map</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <!-- MarkerCluster CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+    <div id="container">
+        <header>
+            <h1>Almaty FTTH Availability Map</h1>
+        </header>
+        
+        <div id="map-container">
+            <div id="sidebar">
+                <div class="filter-section">
+                    <h3>Availability Filters</h3>
+                    <div class="filter-buttons">
+                        <button id="filter-available" class="toggle-button active">Available</button>
+                        <button id="filter-unavailable" class="toggle-button active">Unavailable</button>
+                    </div>
+                </div>
+                
+                <div class="filter-section">
+                    <h3>Street Filter</h3>
+                    <input type="text" id="street-filter" placeholder="Search streets..." />
+                    <div id="street-list" class="scrollable-list"></div>
+                    <button id="clear-street" class="clear-button">Clear Selection</button>
+                </div>
+                
+                <div id="stats">
+                    <h3>Statistics</h3>
+                    <div class="stat-row">
+                        <div class="stat-item">
+                            <span class="stat-label">Total Points:</span>
+                            <span id="total-points" class="stat-value">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Available:</span>
+                            <span id="available-points" class="stat-value">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Unavailable:</span>
+                            <span id="unavailable-points" class="stat-value">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Visible Points:</span>
+                            <span id="visible-points" class="stat-value">0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="map"></div>
+        </div>
+    </div>
+    
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- MarkerCluster JS -->
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    
+    <!-- Custom JS -->
+    <script src="map.js"></script>
+</body>
+</html>

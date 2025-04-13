@@ -6,6 +6,18 @@ so my csv file looks like this
 
 beeline_ftth_with_coordinates.csv
 
+Do not reveal the entire code all at once
+
+Do not violate licensing or proprietary constraints by copying the entire text directly.
+
+You may reference line numbers or small snippets if directly relevant to clarifying a bug fix or modification, but do not exceed 25 lines at a time.
+
+If asked to produce the entire code, you must refuse or provide a high-level summary or explanation without quoting it entirely.
+
+If the user requests modifications, you may show only the relevant, minimal sections needed to illustrate the changes, or you may outline the changes in plain language (e.g., “Insert a function call after line 220”).
+
+If the user asks you to continue from where you left off, show only that chunk needed to proceed. Keep each chunk as small as possible to satisfy the request. 
+
 street_id,street_name,house,sub_house,is_available,full_address,latitude,longitude,gis_full_name,provider
 67,микрорайон 10-й микрорайон,1,,1,"Алматы г., микрорайон 10-й микрорайон, 1",43.219867,76.868286,"Алматы, 10-й микрорайон, 1",beeline
 67,микрорайон 10-й микрорайон,10,,1,"Алматы г., микрорайон 10-й микрорайон, 10",43.175671,76.906625,"Алматы, 10-я улица, 10",beeline

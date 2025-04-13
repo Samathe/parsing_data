@@ -666,312 +666,311 @@ class EnhancedKazakhstanGeocoderManager:
         return result_df
                                
     def geocode_city_data(self, city_id, city_name):
-    """Geocode addresses for a specific city with robust checkpointing and error handling"""
-    # Output file
-    output_file = os.path.join(self.output_dir, f"geocoded_city_{city_id}.csv")
-    checkpoint_file = os.path.join(self.checkpoint_dir, f"geocode_checkpoint_city_{city_id}.json")
-    
-    # Check if output file already exists and is complete
-    if os.path.exists(output_file):
-        try:
-            output_df = pd.read_csv(output_file)
-            required_fields = ['street_id', 'street_name', 'house', 'latitude', 'longitude']
-            
-            if len(output_df) > 0 and all(field in output_df.columns for field in required_fields):
-                geocoded_count = output_df[output_df['latitude'].notna()].shape[0]
-                logger.info(f"Found existing geocoded file with {geocoded_count}/{len(output_df)} geocoded entries")
-                
-                # If a reasonable amount is geocoded, consider it complete
-                if geocoded_count > 0 and geocoded_count / len(output_df) > 0.7:
-                    logger.info(f"Geocoded file for city {city_name} appears complete - skipping")
-                    return
-                else:
-                    logger.warning(f"Geocoded file for city {city_name} exists but has low completion rate ({geocoded_count}/{len(output_df)}) - re-geocoding")
-        except Exception as e:
-            logger.error(f"Error checking existing geocoded file: {e}")
-    
-    # Prepare data for geocoding
-    df = self.prepare_city_data(city_id, city_name)
-    
-    if df is None or len(df) == 0:
-        logger.warning(f"No data to geocode for city {city_name} - skipping")
-        return
-    
-    total_addresses = len(df)
-    logger.info(f"Starting geocoding of {total_addresses} addresses for {city_name}")
-    
-    # Check for checkpoint to resume progress
-    processed_indexes = set()
-    geocoded_rows = []
-    
-    if os.path.exists(checkpoint_file):
-        try:
-            with open(checkpoint_file, 'r') as f:
-                checkpoint = json.load(f)
-                processed_indexes = set(checkpoint.get('processed_indexes', []))
-                geocoded_rows = checkpoint.get('geocoded_rows', [])
-                logger.info(f"Resuming from checkpoint with {len(processed_indexes)} processed addresses")
-        except Exception as e:
-            logger.error(f"Error loading checkpoint: {e}")
-            processed_indexes = set()
-            geocoded_rows = []
-    
-    # Convert any previously geocoded rows to a DataFrame and save as baseline
-    if geocoded_rows:
-        prev_geocoded_df = pd.DataFrame(geocoded_rows)
-        prev_geocoded_df.to_csv(output_file, index=False)
-        logger.info(f"Restored {len(geocoded_rows)} previously geocoded entries from checkpoint")
-    
-    # Filter out already processed indexes
-    remaining_df = df.loc[~df.index.isin(processed_indexes)].copy()
-    logger.info(f"Remaining addresses to geocode: {len(remaining_df)}/{total_addresses}")
-    
-    # Time tracking for rate limiting
-    last_request_time = time.time()
-    total_geocoded = len(geocoded_rows)
-    new_geocoded_rows = []
-    newly_processed_indexes = set()
-    
-    try:
-        # Process each address with progress bar
-        with tqdm(total=len(remaining_df), desc=f"Geocoding addresses in {city_name}") as pbar:
-            for index, row in remaining_df.iterrows():
-                # Format address
-                address_variations = self.create_address_variations(
-                    row['street_name'], 
-                    row['house'], 
-                    row['sub_house'] if 'sub_house' in row else "", 
-                    city_name
-                )
-                
-                # Rate limiting
-                current_time = time.time()
-                elapsed = current_time - last_request_time
-                sleep_time = max(0, self.current_delay - elapsed)
-                
-                if sleep_time > 0:
-                    time.sleep(sleep_time)
-                
-                # Geocode the address
-                last_request_time = time.time()
-                geocode_response, used_address = self.geocode_address(address_variations)
-                
-                # Process the result
-                geocode_data = self.extract_geocode_data(geocode_response, used_address)
-                
-                # Create result row
-                result_row = {
-                    'street_id': row['street_id'],
-                    'city_id': row['city_id'],
-                    'street_name': row['street_name'],
-                    'house': row['house'],
-                    'sub_house': row['sub_house'] if 'sub_house' in row else "",
-                    'is_available': row['is_available'],
-                    'full_address': address_variations[0] if address_variations else "",
-                    'latitude': None,
-                    'longitude': None,
-                    'gis_full_name': None,
-                    'geocoded_address': None,
-                    'geocode_confidence': 0.0,
-                    'provider': 'beeline'
-                }
-                
-                # Add geocoding data if available
-                if geocode_data:
-                    result_row.update(geocode_data)
-                    total_geocoded += 1
-                
-                # Add to results
-                new_geocoded_rows.append(result_row)
-                newly_processed_indexes.add(index)
-                
-                # Update progress bar
-                pbar.update(1)
-                
-                # Update and save checkpoint periodically
-                if len(new_geocoded_rows) % self.batch_size == 0:
-                    self.save_geocoded_batch(new_geocoded_rows, output_file, 
-                                          len(geocoded_rows) == 0 and len(newly_processed_indexes) == self.batch_size)
-                    
-                    # Update checkpoint
-                    all_processed = processed_indexes.union(newly_processed_indexes)
-                    all_geocoded = geocoded_rows + new_geocoded_rows
-                    self.save_checkpoint(checkpoint_file, {
-                        'processed_indexes': list(all_processed),
-                        'geocoded_rows': all_geocoded  # Save all rows for recovery
-                    })
-                    
-                    logger.debug(f"Updated checkpoint: {len(all_processed)}/{total_addresses} addresses processed")
-                    
-                    # Reset batch tracking
-                    geocoded_rows = all_geocoded
-                    processed_indexes = all_processed
-                    new_geocoded_rows = []
-                    newly_processed_indexes = set()
+        """Geocode addresses for a specific city with robust checkpointing and error handling"""
+        # Output file
+        output_file = os.path.join(self.output_dir, f"geocoded_city_{city_id}.csv")
+        checkpoint_file = os.path.join(self.checkpoint_dir, f"geocode_checkpoint_city_{city_id}.json")
         
-        # Save final batch if any left
-        if new_geocoded_rows:
-            self.save_geocoded_batch(new_geocoded_rows, output_file, 
-                                  len(geocoded_rows) == 0 and len(newly_processed_indexes) == len(new_geocoded_rows))
+        # Check if output file already exists and is complete
+        if os.path.exists(output_file):
+            try:
+                output_df = pd.read_csv(output_file)
+                required_fields = ['street_id', 'street_name', 'house', 'latitude', 'longitude']
+                
+                if len(output_df) > 0 and all(field in output_df.columns for field in required_fields):
+                    geocoded_count = output_df[output_df['latitude'].notna()].shape[0]
+                    logger.info(f"Found existing geocoded file with {geocoded_count}/{len(output_df)} geocoded entries")
+                    
+                    # If a reasonable amount is geocoded, consider it complete
+                    if geocoded_count > 0 and geocoded_count / len(output_df) > 0.7:
+                        logger.info(f"Geocoded file for city {city_name} appears complete - skipping")
+                        return
+                    else:
+                        logger.warning(f"Geocoded file for city {city_name} exists but has low completion rate ({geocoded_count}/{len(output_df)}) - re-geocoding")
+            except Exception as e:
+                logger.error(f"Error checking existing geocoded file: {e}")
+        
+        # Prepare data for geocoding
+        df = self.prepare_city_data(city_id, city_name)
+        
+        if df is None or len(df) == 0:
+            logger.warning(f"No data to geocode for city {city_name} - skipping")
+            return
+        
+        total_addresses = len(df)
+        logger.info(f"Starting geocoding of {total_addresses} addresses for {city_name}")
+        
+        # Check for checkpoint to resume progress
+        processed_indexes = set()
+        geocoded_rows = []
+        
+        if os.path.exists(checkpoint_file):
+            try:
+                with open(checkpoint_file, 'r') as f:
+                    checkpoint = json.load(f)
+                    processed_indexes = set(checkpoint.get('processed_indexes', []))
+                    geocoded_rows = checkpoint.get('geocoded_rows', [])
+                    logger.info(f"Resuming from checkpoint with {len(processed_indexes)} processed addresses")
+            except Exception as e:
+                logger.error(f"Error loading checkpoint: {e}")
+                processed_indexes = set()
+                geocoded_rows = []
+        
+        # Convert any previously geocoded rows to a DataFrame and save as baseline
+        if geocoded_rows:
+            prev_geocoded_df = pd.DataFrame(geocoded_rows)
+            prev_geocoded_df.to_csv(output_file, index=False)
+            logger.info(f"Restored {len(geocoded_rows)} previously geocoded entries from checkpoint")
+        
+        # Filter out already processed indexes
+        remaining_df = df.loc[~df.index.isin(processed_indexes)].copy()
+        logger.info(f"Remaining addresses to geocode: {len(remaining_df)}/{total_addresses}")
+        
+        # Time tracking for rate limiting
+        last_request_time = time.time()
+        total_geocoded = len(geocoded_rows)
+        new_geocoded_rows = []
+        newly_processed_indexes = set()
+        
+        try:
+            # Process each address with progress bar
+            with tqdm(total=len(remaining_df), desc=f"Geocoding addresses in {city_name}") as pbar:
+                for index, row in remaining_df.iterrows():
+                    # Format address
+                    address_variations = self.create_address_variations(
+                        row['street_name'], 
+                        row['house'], 
+                        row['sub_house'] if 'sub_house' in row else "", 
+                        city_name
+                    )
+                    
+                    # Rate limiting
+                    current_time = time.time()
+                    elapsed = current_time - last_request_time
+                    sleep_time = max(0, self.current_delay - elapsed)
+                    
+                    if sleep_time > 0:
+                        time.sleep(sleep_time)
+                    
+                    # Geocode the address
+                    last_request_time = time.time()
+                    geocode_response, used_address = self.geocode_address(address_variations)
+                    
+                    # Process the result
+                    geocode_data = self.extract_geocode_data(geocode_response, used_address)
+                    
+                    # Create result row
+                    result_row = {
+                        'street_id': row['street_id'],
+                        'city_id': row['city_id'],
+                        'street_name': row['street_name'],
+                        'house': row['house'],
+                        'sub_house': row['sub_house'] if 'sub_house' in row else "",
+                        'is_available': row['is_available'],
+                        'full_address': address_variations[0] if address_variations else "",
+                        'latitude': None,
+                        'longitude': None,
+                        'gis_full_name': None,
+                        'geocoded_address': None,
+                        'geocode_confidence': 0.0,
+                        'provider': 'beeline'
+                    }
+                    
+                    # Add geocoding data if available
+                    if geocode_data:
+                        result_row.update(geocode_data)
+                        total_geocoded += 1
+                    
+                    # Add to results
+                    new_geocoded_rows.append(result_row)
+                    newly_processed_indexes.add(index)
+                    
+                    # Update progress bar
+                    pbar.update(1)
+                    
+                    # Update and save checkpoint periodically
+                    if len(new_geocoded_rows) % self.batch_size == 0:
+                        self.save_geocoded_batch(new_geocoded_rows, output_file, 
+                                            len(geocoded_rows) == 0 and len(newly_processed_indexes) == self.batch_size)
+                        
+                        # Update checkpoint
+                        all_processed = processed_indexes.union(newly_processed_indexes)
+                        all_geocoded = geocoded_rows + new_geocoded_rows
+                        self.save_checkpoint(checkpoint_file, {
+                            'processed_indexes': list(all_processed),
+                            'geocoded_rows': all_geocoded  # Save all rows for recovery
+                        })
+                        
+                        logger.debug(f"Updated checkpoint: {len(all_processed)}/{total_addresses} addresses processed")
+                        
+                        # Reset batch tracking
+                        geocoded_rows = all_geocoded
+                        processed_indexes = all_processed
+                        new_geocoded_rows = []
+                        newly_processed_indexes = set()
             
-            # Update final checkpoint
-            all_processed = processed_indexes.union(newly_processed_indexes)
-            all_geocoded = geocoded_rows + new_geocoded_rows
-            self.save_checkpoint(checkpoint_file, {
-                'processed_indexes': list(all_processed),
-                'geocoded_rows': all_geocoded
-            })
+            # Save final batch if any left
+            if new_geocoded_rows:
+                self.save_geocoded_batch(new_geocoded_rows, output_file, 
+                                    len(geocoded_rows) == 0 and len(newly_processed_indexes) == len(new_geocoded_rows))
+                
+                # Update final checkpoint
+                all_processed = processed_indexes.union(newly_processed_indexes)
+                all_geocoded = geocoded_rows + new_geocoded_rows
+                self.save_checkpoint(checkpoint_file, {
+                    'processed_indexes': list(all_processed),
+                    'geocoded_rows': all_geocoded
+                })
+            
+            # Log summary
+            geocoded_rate = (total_geocoded / total_addresses) * 100 if total_addresses > 0 else 0
+            logger.info(f"Geocoding complete for city {city_name}: {total_geocoded}/{total_addresses} geocoded ({geocoded_rate:.1f}%)")
+            
+        except KeyboardInterrupt:
+            logger.warning("Process interrupted by user")
+            # Save progress on interrupt
+            if new_geocoded_rows:
+                self.save_geocoded_batch(new_geocoded_rows, output_file, 
+                                    len(geocoded_rows) == 0 and len(newly_processed_indexes) == len(new_geocoded_rows))
+                
+                # Update checkpoint with current progress
+                all_processed = processed_indexes.union(newly_processed_indexes)
+                all_geocoded = geocoded_rows + new_geocoded_rows
+                self.save_checkpoint(checkpoint_file, {
+                    'processed_indexes': list(all_processed),
+                    'geocoded_rows': all_geocoded
+                })
+                
+            logger.info(f"Saved progress: {len(processed_indexes.union(newly_processed_indexes))}/{total_addresses} addresses processed")
+            
+        except Exception as e:
+            logger.error(f"Error during geocoding: {e}")
+            # Save progress on error
+            if new_geocoded_rows:
+                self.save_geocoded_batch(new_geocoded_rows, output_file, 
+                                    len(geocoded_rows) == 0 and len(newly_processed_indexes) == len(new_geocoded_rows))
+                
+                # Update checkpoint with current progress
+                all_processed = processed_indexes.union(newly_processed_indexes)
+                all_geocoded = geocoded_rows + new_geocoded_rows
+                self.save_checkpoint(checkpoint_file, {
+                    'processed_indexes': list(all_processed),
+                    'geocoded_rows': all_geocoded
+                })
+                
+            logger.info(f"Saved progress after error: {len(processed_indexes.union(newly_processed_indexes))}/{total_addresses} addresses processed")
+
+    def save_geocoded_batch(self, rows, file_path, write_header=False):
+        """Save a batch of geocoded results to CSV file"""
+        if not rows:
+            return
+        
+        mode = 'w' if write_header else 'a'
+        
+        try:
+            with open(file_path, mode, newline='', encoding='utf-8') as f:
+                writer = csv.DictWriter(f, fieldnames=rows[0].keys())
+                if write_header:
+                    writer.writeheader()
+                writer.writerows(rows)
+            
+            logger.debug(f"{len(rows)} geocoded entries {'saved to' if write_header else 'appended to'} {file_path}")
+        except Exception as e:
+            logger.error(f"Error saving geocoded batch: {e}")
+
+    def merge_city_results(self):
+        """Merge geocoded results from all cities into a single file"""
+        logger.info("Merging geocoded results from all cities")
+        
+        # Final output file
+        output_file = os.path.join(self.output_dir, "all_geocoded_results.csv")
+        
+        # Find all geocoded city files
+        geocoded_files = [f for f in os.listdir(self.output_dir) if f.startswith("geocoded_city_") and f.endswith(".csv")]
+        
+        if not geocoded_files:
+            logger.warning("No geocoded city files found to merge")
+            return
+        
+        logger.info(f"Found {len(geocoded_files)} geocoded city files to merge")
+        
+        # Read and combine all files
+        all_data = []
+        total_records = 0
+        geocoded_records = 0
+        
+        for file in geocoded_files:
+            file_path = os.path.join(self.output_dir, file)
+            try:
+                df = pd.read_csv(file_path)
+                records = len(df)
+                geocoded = df[df['latitude'].notna()].shape[0]
+                
+                logger.info(f"File {file}: {geocoded}/{records} geocoded entries")
+                
+                # Add city name to each record
+                city_id = int(file.replace("geocoded_city_", "").replace(".csv", ""))
+                city_name = self.city_name_cache.get(city_id, f"City {city_id}")
+                df['city_name'] = city_name
+                
+                all_data.append(df)
+                total_records += records
+                geocoded_records += geocoded
+                
+            except Exception as e:
+                logger.error(f"Error processing file {file}: {e}")
+        
+        if not all_data:
+            logger.warning("No valid data found for merging")
+            return
+        
+        # Combine all dataframes
+        combined_df = pd.concat(all_data, ignore_index=True)
+        
+        # Save combined results
+        combined_df.to_csv(output_file, index=False)
         
         # Log summary
-        geocoded_rate = (total_geocoded / total_addresses) * 100 if total_addresses > 0 else 0
-        logger.info(f"Geocoding complete for city {city_name}: {total_geocoded}/{total_addresses} geocoded ({geocoded_rate:.1f}%)")
+        geocoded_rate = (geocoded_records / total_records) * 100 if total_records > 0 else 0
+        logger.info(f"Merged {len(geocoded_files)} files into {output_file}")
+        logger.info(f"Total records: {total_records}, Geocoded: {geocoded_records} ({geocoded_rate:.1f}%)")
         
-    except KeyboardInterrupt:
-        logger.warning("Process interrupted by user")
-        # Save progress on interrupt
-        if new_geocoded_rows:
-            self.save_geocoded_batch(new_geocoded_rows, output_file, 
-                                  len(geocoded_rows) == 0 and len(newly_processed_indexes) == len(new_geocoded_rows))
-            
-            # Update checkpoint with current progress
-            all_processed = processed_indexes.union(newly_processed_indexes)
-            all_geocoded = geocoded_rows + new_geocoded_rows
-            self.save_checkpoint(checkpoint_file, {
-                'processed_indexes': list(all_processed),
-                'geocoded_rows': all_geocoded
-            })
-            
-        logger.info(f"Saved progress: {len(processed_indexes.union(newly_processed_indexes))}/{total_addresses} addresses processed")
+        # Also convert to JSON format for web applications
+        self.convert_to_json(combined_df, os.path.join(self.output_dir, "all_geocoded_results.json"))
         
-    except Exception as e:
-        logger.error(f"Error during geocoding: {e}")
-        # Save progress on error
-        if new_geocoded_rows:
-            self.save_geocoded_batch(new_geocoded_rows, output_file, 
-                                  len(geocoded_rows) == 0 and len(newly_processed_indexes) == len(new_geocoded_rows))
-            
-            # Update checkpoint with current progress
-            all_processed = processed_indexes.union(newly_processed_indexes)
-            all_geocoded = geocoded_rows + new_geocoded_rows
-            self.save_checkpoint(checkpoint_file, {
-                'processed_indexes': list(all_processed),
-                'geocoded_rows': all_geocoded
-            })
-            
-        logger.info(f"Saved progress after error: {len(processed_indexes.union(newly_processed_indexes))}/{total_addresses} addresses processed")
-
-def save_geocoded_batch(self, rows, file_path, write_header=False):
-    """Save a batch of geocoded results to CSV file"""
-    if not rows:
-        return
-    
-    mode = 'w' if write_header else 'a'
-    
-    try:
-        with open(file_path, mode, newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=rows[0].keys())
-            if write_header:
-                writer.writeheader()
-            writer.writerows(rows)
-        
-        logger.debug(f"{len(rows)} geocoded entries {'saved to' if write_header else 'appended to'} {file_path}")
-    except Exception as e:
-        logger.error(f"Error saving geocoded batch: {e}")
-
-def merge_city_results(self):
-    """Merge geocoded results from all cities into a single file"""
-    logger.info("Merging geocoded results from all cities")
-    
-    # Final output file
-    output_file = os.path.join(self.output_dir, "all_geocoded_results.csv")
-    
-    # Find all geocoded city files
-    geocoded_files = [f for f in os.listdir(self.output_dir) if f.startswith("geocoded_city_") and f.endswith(".csv")]
-    
-    if not geocoded_files:
-        logger.warning("No geocoded city files found to merge")
-        return
-    
-    logger.info(f"Found {len(geocoded_files)} geocoded city files to merge")
-    
-    # Read and combine all files
-    all_data = []
-    total_records = 0
-    geocoded_records = 0
-    
-    for file in geocoded_files:
-        file_path = os.path.join(self.output_dir, file)
+    def convert_to_json(self, dataframe, json_file):
+        """Convert DataFrame to JSON format for web applications"""
         try:
-            df = pd.read_csv(file_path)
-            records = len(df)
-            geocoded = df[df['latitude'].notna()].shape[0]
+            # Process data for JSON format
+            json_data = []
             
-            logger.info(f"File {file}: {geocoded}/{records} geocoded entries")
+            for _, row in dataframe.iterrows():
+                # Skip entries without coordinates
+                if pd.isna(row['latitude']) or pd.isna(row['longitude']):
+                    continue
+                    
+                # Create JSON entry
+                entry = {
+                    'streetId': int(row['street_id']) if not pd.isna(row['street_id']) else None,
+                    'streetName': row['street_name'] if not pd.isna(row['street_name']) else "",
+                    'house': row['house'] if not pd.isna(row['house']) else "",
+                    'subHouse': row['sub_house'] if 'sub_house' in row and not pd.isna(row['sub_house']) else "",
+                    'isAvailable': int(row['is_available']) if not pd.isna(row['is_available']) else 0,
+                    'fullAddress': row['full_address'] if 'full_address' in row and not pd.isna(row['full_address']) else "",
+                    'gisFullName': row['gis_full_name'] if 'gis_full_name' in row and not pd.isna(row['gis_full_name']) else "",
+                    'provider': row['provider'] if 'provider' in row else "beeline",
+                    'latitude': float(row['latitude']),
+                    'longitude': float(row['longitude']),
+                    'city': row['city_name'] if 'city_name' in row else "Unknown"
+                }
+                
+                json_data.append(entry)
             
-            # Add city name to each record
-            city_id = int(file.replace("geocoded_city_", "").replace(".csv", ""))
-            city_name = self.city_name_cache.get(city_id, f"City {city_id}")
-            df['city_name'] = city_name
-            
-            all_data.append(df)
-            total_records += records
-            geocoded_records += geocoded
+            # Write to JSON file
+            with open(json_file, 'w', encoding='utf-8') as f:
+                json.dump(json_data, f, ensure_ascii=False, indent=2)
+                
+            logger.info(f"Converted {len(json_data)} geocoded entries to JSON: {json_file}")
             
         except Exception as e:
-            logger.error(f"Error processing file {file}: {e}")
-    
-    if not all_data:
-        logger.warning("No valid data found for merging")
-        return
-    
-    # Combine all dataframes
-    combined_df = pd.concat(all_data, ignore_index=True)
-    
-    # Save combined results
-    combined_df.to_csv(output_file, index=False)
-    
-    # Log summary
-    geocoded_rate = (geocoded_records / total_records) * 100 if total_records > 0 else 0
-    logger.info(f"Merged {len(geocoded_files)} files into {output_file}")
-    logger.info(f"Total records: {total_records}, Geocoded: {geocoded_records} ({geocoded_rate:.1f}%)")
-    
-    # Also convert to JSON format for web applications
-    self.convert_to_json(combined_df, os.path.join(self.output_dir, "all_geocoded_results.json"))
-    
-def convert_to_json(self, dataframe, json_file):
-    """Convert DataFrame to JSON format for web applications"""
-    try:
-        # Process data for JSON format
-        json_data = []
-        
-        for _, row in dataframe.iterrows():
-            # Skip entries without coordinates
-            if pd.isna(row['latitude']) or pd.isna(row['longitude']):
-                continue
-                
-            # Create JSON entry
-            entry = {
-                'streetId': int(row['street_id']) if not pd.isna(row['street_id']) else None,
-                'streetName': row['street_name'] if not pd.isna(row['street_name']) else "",
-                'house': row['house'] if not pd.isna(row['house']) else "",
-                'subHouse': row['sub_house'] if 'sub_house' in row and not pd.isna(row['sub_house']) else "",
-                'isAvailable': int(row['is_available']) if not pd.isna(row['is_available']) else 0,
-                'fullAddress': row['full_address'] if 'full_address' in row and not pd.isna(row['full_address']) else "",
-                'gisFullName': row['gis_full_name'] if 'gis_full_name' in row and not pd.isna(row['gis_full_name']) else "",
-                'provider': row['provider'] if 'provider' in row else "beeline",
-                'latitude': float(row['latitude']),
-                'longitude': float(row['longitude']),
-                'city': row['city_name'] if 'city_name' in row else "Unknown"
-            }
-            
-            json_data.append(entry)
-        
-        # Write to JSON file
-        with open(json_file, 'w', encoding='utf-8') as f:
-            json.dump(json_data, f, ensure_ascii=False, indent=2)
-            
-        logger.info(f"Converted {len(json_data)} geocoded entries to JSON: {json_file}")
-        
-    except Exception as e:
-        logger.error(f"Error converting to JSON: {e}")
-                             
+            logger.error(f"Error converting to JSON: {e}")

@@ -62,12 +62,16 @@ document.addEventListener('DOMContentLoaded', function() {
             return div;
         };
         legend.addTo(map);
+        
+        console.log("Map initialized");
     }
     
     /**
      * Load and process map data from JSON file
      */
     function loadMapData() {
+        console.log("Loading map data from:", mapConfig.dataUrl);
+        
         fetch(mapConfig.dataUrl)
             .then(response => {
                 if (!response.ok) {
@@ -76,6 +80,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 return response.json();
             })
             .then(data => {
+                console.log("Data loaded successfully, records:", data.length);
                 if (data && data.length > 0) {
                     processData(data);
                 } else {
@@ -84,6 +89,11 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .catch(error => {
                 console.error('Error loading data:', error);
+                // Display error on the page
+                const statsElement = document.getElementById('stats');
+                if (statsElement) {
+                    statsElement.innerHTML = `<h3>Error Loading Data</h3><p>${error.message}</p>`;
+                }
             });
     }
     
@@ -93,6 +103,8 @@ document.addEventListener('DOMContentLoaded', function() {
     function processData(data) {
         // Store the data
         allData = data;
+        
+        console.log("Processing data...");
         
         // Process data to identify addresses with multiple providers
         processProviderData();
@@ -116,6 +128,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 padding: [50, 50]  // Add some padding around the bounds
             });
         }
+        
+        console.log("Data processing complete");
     }
     
     /**
@@ -157,6 +171,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         
+        console.log("Unique providers:", uniqueProviders.size);
+        
         // Count addresses by provider count
         providerCounts = {
             total: allData.length,
@@ -165,6 +181,8 @@ document.addEventListener('DOMContentLoaded', function() {
             available: allData.filter(point => point.isAvailable === 1).length,
             unavailable: allData.filter(point => point.isAvailable === 0).length
         };
+        
+        console.log("Provider counts:", providerCounts);
     }
     
     /**
@@ -173,6 +191,15 @@ document.addEventListener('DOMContentLoaded', function() {
     function updateMarkers() {
         // Clear existing markers
         markersLayer.clearLayers();
+        
+        console.log("Updating markers with filters:", {
+            showAvailable,
+            showUnavailable,
+            showBothProviders,
+            showSingleProvider,
+            selectedStreet,
+            selectedProvider
+        });
         
         let visibleCount = 0;
         
@@ -256,6 +283,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         
+        console.log("Visible markers:", visibleCount);
+        
         // Update visible count
         document.getElementById('visible-points').textContent = visibleCount;
     }
@@ -269,6 +298,8 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Get unique streets
         const streets = [...new Set(allData.map(point => point.streetName))].sort();
+        
+        console.log("Unique streets:", streets.length);
         
         streets.forEach(street => {
             const streetItem = document.createElement('div');
@@ -306,6 +337,8 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Get unique providers
         const providers = [...new Set(allData.flatMap(point => point.providers || []))].sort();
+        
+        console.log("Unique providers for filtering:", providers);
         
         providers.forEach(provider => {
             const providerItem = document.createElement('div');
@@ -497,6 +530,8 @@ document.addEventListener('DOMContentLoaded', function() {
      * Set up event listeners for UI elements
      */
     function setupEventListeners() {
+        console.log("Setting up event listeners");
+        
         // Availability filter buttons
         document.getElementById('filter-available').addEventListener('click', toggleAvailable);
         document.getElementById('filter-unavailable').addEventListener('click', toggleUnavailable);

@@ -80,9 +80,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 return response.json();
             })
             .then(data => {
-                console.log("Data loaded successfully, records:", data.length);
-                if (data && data.length > 0) {
-                    processData(data);
+                // Check if data is already an array, if not, convert it to an array
+                let dataArray = Array.isArray(data) ? data : [data];
+                
+                console.log("Data loaded successfully, records:", dataArray.length);
+                if (dataArray && dataArray.length > 0) {
+                    processData(dataArray);
                 } else {
                     console.error('No data found in the JSON file');
                 }
@@ -92,7 +95,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Display error on the page
                 const statsElement = document.getElementById('stats');
                 if (statsElement) {
-                    statsElement.innerHTML = `<h3>Error Loading Data</h3><p>${error.message}</p>`;
+                    statsElement.innerHTML = `<h3>Error Loading Data</h3><p>${error.message}</p>
+                    <p>Try opening your browser console (F12) for more details.</p>`;
                 }
             });
     }
@@ -141,7 +145,10 @@ document.addEventListener('DOMContentLoaded', function() {
         
         allData.forEach(point => {
             // Skip points without valid coordinates
-            if (!point.latitude || !point.longitude) return;
+            if (!point.latitude || !point.longitude) {
+                console.log("Skipping point without coordinates:", point);
+                return;
+            }
             
             const key = `${point.latitude},${point.longitude}`;
             
@@ -172,6 +179,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         console.log("Unique providers:", uniqueProviders.size);
+        console.log("Sample data point:", allData.length > 0 ? allData[0] : "No data");
         
         // Count addresses by provider count
         providerCounts = {
